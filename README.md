@@ -1,7 +1,7 @@
-![Kereva Logo](/media/logo.svg)
-
 <div>
-<center><a href="https://kereva.io">kereva.io</a> | <a href="mailto:hello@kereva.io">hello@kereva.io</a></center>
+  <img src="https://raw.githubusercontent.com/rbitr/kereva-scanner/68b6a59b9a89930b1c8b6aae6f137637cf7de7bd/media/logo.svg" width=50% height=50%><br>
+  <a href="https://kereva.io">kereva.io</a> | <a href="mailto:hello@kereva.io">hello@kereva.io</a>
+  <hr>
 </div>
 
 ### This is an early release, please expect bugs and breaking changes
