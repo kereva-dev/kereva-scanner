@@ -18,6 +18,7 @@ class ConsoleReporter:
     def _print_issue(self, index: int, issue: Issue) -> None:
         """Print a single issue with formatting."""
         severity_colors = {
+            "critical": "\033[1;95m", # should be bright purple
             "high": "\033[91m",  # Red
             "medium": "\033[93m",  # Yellow
             "low": "\033[94m",  # Blue
