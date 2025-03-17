@@ -1,3 +1,4 @@
 networkx>=2.8.0
 matplotlib>=3.5.0
 pytest>=7.0.0
+tqdm>=4.67.0
