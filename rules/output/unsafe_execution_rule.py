@@ -19,7 +19,8 @@ class UnsafeExecutionRule(BaseRule):
         super().__init__(
             rule_id="output-unsafe-execution",
             description="LLM output is passed to unsafe function that allows code execution",
-            severity="critical"
+            severity="critical",
+            tags=["excessive agency", "code execution", "OWASP LLM06"]
         )
         # Unsafe functions that can execute code
         self.unsafe_functions = [

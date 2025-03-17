@@ -10,7 +10,8 @@ class UnsafeInputRule(BaseRule):
         super().__init__(
             rule_id="chain-unsafe-input",
             description="Untrusted input flows directly through LLM chain without sanitization",
-            severity="high"
+            severity="high",
+            tags = ["prompt injection", "OWASP LLM01", "OWASP LLM02", "OWASP LLM05"]
         )
         # Default untrusted input parameter names (can be customized through context)
         self.default_untrusted_params = [
