@@ -8,65 +8,7 @@ from tqdm import tqdm
 from core.analyzer import Analyzer
 from scanners.base_scanner import BaseScanner
 
-# Import scanners from their new locations
-from scanners.prompt import XMLTagsScanner, SubjectiveTermsScanner, LongListScanner, InefficientCachingScanner
-from scanners.chain import UnsafeInputScanner, LangChainScanner
-from scanners.output import UnsafeExecutionScanner, StructuredScanner
-
-
-def get_scanner_categories():
-    """Return a dictionary of scanner categories with their subcategories."""
-    return {
-        "prompt": {
-            "description": "Scanners for prompt-related issues",
-            "scanners": {
-                "xml_tags": {
-                    "class": XMLTagsScanner,
-                    "description": "Checks for proper XML tag usage in prompts"
-                },
-                "subjective_terms": {
-                    "class": SubjectiveTermsScanner,
-                    "description": "Detects subjective terms without clear definitions"
-                },
-                "long_list": {
-                    "class": LongListScanner,
-                    "description": "Identifies large data lists in prompts"
-                },
-                "inefficient_caching": {
-                    "class": InefficientCachingScanner, 
-                    "description": "Detects inefficient prompt structures for caching",
-                    "params": {"min_prompt_length": 200}
-                }
-            }
-        },
-        "chain": {
-            "description": "Scanners for LLM chain vulnerabilities",
-            "scanners": {
-                "unsafe_input": {
-                    "class": UnsafeInputScanner,
-                    "description": "Detects unsanitized user input flowing to LLMs"
-                },
-                "langchain": {
-                    "class": LangChainScanner,
-                    "description": "Identifies LangChain-specific vulnerabilities",
-                    "params": {"offline_mode": None}  # This will be set from CLI args
-                }
-            }
-        },
-        "output": {
-            "description": "Scanners for LLM output-related issues",
-            "scanners": {
-                "unsafe_execution": {
-                    "class": UnsafeExecutionScanner,
-                    "description": "Detects unsafe execution of LLM outputs"
-                },
-                "structured": {
-                    "class": StructuredScanner,
-                    "description": "Validates output models used for parsing LLM responses"
-                }
-            }
-        }
-    }
+from core.utils import get_scanner_categories
 
 
 def get_available_scanners() -> Dict[str, dict]:
