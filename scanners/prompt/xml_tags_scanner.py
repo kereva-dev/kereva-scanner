@@ -14,7 +14,7 @@ from rules.prompt.xml_tags.langchain_rule import LangChainXMLTagRule
 from rules.prompt.xml_tags.list_protection_rule import ListProtectionXMLRule
 
 
-class XMLTagsScanner(BaseScanner):
+class XmlTagsScanner(BaseScanner):
     """Scanner for XML tag-related issues in prompts."""
     
     def __init__(self):

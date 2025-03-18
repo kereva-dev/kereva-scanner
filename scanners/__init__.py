@@ -13,7 +13,7 @@ from scanners.output import UnsafeExecutionScanner, StructuredScanner
 __all__ = [
     'BaseScanner',
     # Prompt scanners
-    'XMLTagsScanner',
+    'XmlTagsScanner',
     'SubjectiveTermsScanner',
     'LongListScanner',
     'InefficientCachingScanner',
