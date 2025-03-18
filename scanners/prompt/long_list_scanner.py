@@ -11,7 +11,7 @@ from core.config import LLM_API_PATTERNS, PROMPT_VARIABLE_PATTERNS
 
 from rules.prompt.long_list_rule import LongListRule
 # Import the XMLTagsScanner to use for checking XML tag protection
-from scanners.prompt.xml_tags_scanner import XMLTagsScanner
+from scanners.prompt.xml_tags_scanner import XmlTagsScanner
 
 class LongListScanner(BaseScanner):
     """Scanner for detecting prompts that programmatically add long lists of data points.
@@ -31,7 +31,7 @@ class LongListScanner(BaseScanner):
         # Threshold for the number of items before issuing a warning
         self.warning_threshold = warning_threshold
         # Create XML tags scanner for checking XML tag protection
-        self.xml_tags_scanner = XMLTagsScanner()
+        self.xml_tags_scanner = XmlTagsScanner()
     
     def scan(self, ast_node, context=None) -> List[Issue]:
         """Scan for patterns of adding long lists to prompts using data flow analysis."""
