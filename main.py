@@ -149,15 +149,17 @@ def main():
     
     # Handle both file and directory paths
     files_to_analyze = []
-    if target_path.is_file() and target_path.suffix == '.py':
+    if target_path.is_file() and target_path.suffix in ('.py', '.ipynb'):
         # If target is a specific Python file, analyze just that file
         files_to_analyze = [target_path]
         print(f"Analyzing single file: {target_path}")
     else:
         # If target is a directory, recursively find all Python files
-        files_to_analyze = list(target_path.glob("**/*.py"))
-        print(f"Found {len(files_to_analyze)} Python files to analyze")
-    
+        py_files = list(target_path.glob("**/*.py"))
+        ipynb_files = list(target_path.glob("**/*.ipynb"))
+        files_to_analyze = py_files + ipynb_files
+        print(f"Found {len(py_files)} Python files and {len(ipynb_files)} Jupyter notebooks to analyze")
+
     print("Scanning...")
     for file_path in tqdm(files_to_analyze):
         # Skip the scanner itself to avoid false positives

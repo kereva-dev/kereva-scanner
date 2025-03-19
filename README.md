@@ -18,6 +18,7 @@ pip install -r requirements.txt
 
 # Scan a file or directory
 python main.py path/to/file.py
+python main.py path/to/file.ipynb
 python main.py path/to/directory
 
 # List available scanners
@@ -29,6 +30,7 @@ python main.py --list_scans
 - **Static Analysis**: Analyze code without execution
 - **Multiple Scanner Types**: Detect various LLM security & usage issues
 - **Comprehensive Reporting**: Console, JSON, and detailed logs
+- **Jupyter Support**: Analyze Python code in Jupyter notebooks (.ipynb)
 
 ## Basic Usage
 
