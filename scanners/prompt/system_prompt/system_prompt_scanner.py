@@ -249,6 +249,10 @@ class EnhancedAPICallVisitor(BaseVisitor):
         # Get the function name
         function_name = self._get_function_name(node)
         
+        # Check if function_name is None and return early if so
+        if function_name is None:
+            return False
+
         # Check for common LLM API call patterns
         llm_api_patterns = [
             "openai.ChatCompletion.create",
