@@ -252,7 +252,7 @@ class EnhancedAPICallVisitor(BaseVisitor):
         # Check if function_name is None and return early if so
         if function_name is None:
             return False
-
+            
         # Check for common LLM API call patterns
         llm_api_patterns = [
             "openai.ChatCompletion.create",

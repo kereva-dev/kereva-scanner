@@ -11,7 +11,7 @@ class UnsafeInputRule(BaseRule):
             rule_id="chain-unsafe-input",
             description="Untrusted input flows directly through LLM chain without sanitization",
             severity="high",
-            tags = ["prompt injection", "OWASP LLM01", "OWASP LLM02", "OWASP LLM05"]
+            tags=["security", "sanitization", "prompt-engineering"]
         )
         # Default untrusted input parameter names (can be customized through context)
         self.default_untrusted_params = [
@@ -47,7 +47,8 @@ class UnsafeInputRule(BaseRule):
                             location=self._get_location(llm_call),
                             severity=self.severity,
                             fix_suggestion="Implement input validation or use a allow-list approach for user inputs",
-                            context={"param": param, "llm_call": ast.dump(llm_call)}
+                            context={"param": param, "llm_call": ast.dump(llm_call)},
+                            tags=["security", "sanitization", "prompt-engineering"]
                         )
         elif isinstance(node_info, dict) and 'content' in node_info:
             # Handle prompt data dictionary from PromptScanner

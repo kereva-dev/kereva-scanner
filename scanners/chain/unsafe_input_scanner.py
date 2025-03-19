@@ -61,10 +61,13 @@ class UnsafeInputScanner(BaseScanner):
             vulnerabilities = analyzer.analyze_vulnerabilities()
             
             # Convert vulnerabilities to Issue objects
+            # Get rule ID from the rule instance rather than hardcoding it
+            rule_id = self.rules[0].rule_id if self.rules else "chain-unsafe-input"
+            
             for vuln in vulnerabilities:
                 line_number = self._find_line_number(vuln)
                 issue = Issue(
-                    rule_id="chain-unsanitized-input",
+                    rule_id=rule_id,  # Use the rule ID from the rule instance
                     message=vuln["description"],
                     location={
                         "file": context.get("file_name", "<unknown>"),
@@ -80,7 +83,8 @@ class UnsafeInputScanner(BaseScanner):
                         "source": vuln["source"],
                         "sink": vuln["sink"],
                         "path": " -> ".join(vuln["path"]) if "path" in vuln else ""
-                    }
+                    },
+                    tags=self.rules[0].tags if self.rules else ["security", "sanitization", "prompt-engineering"]
                 )
                 self.register_issue(issue)
                 
