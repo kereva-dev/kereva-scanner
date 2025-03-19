@@ -35,16 +35,29 @@ def extract_code_from_notebook(notebook_path: Path) -> Tuple[str, Dict[int, int]
         if not source.strip():
             continue
             
+        # Process the cell content
+        processed_lines = []
+        for line in source.split('\n'):
+            # Skip lines starting with ! or % (IPython magic commands)
+            if line.strip().startswith('!') or line.strip().startswith('%'):
+                # Replace with a pass statement to preserve line numbers
+                processed_lines.append('pass  # IPython magic command removed')
+            else:
+                processed_lines.append(line)
+        
+        # Rejoin the processed lines
+        processed_source = '\n'.join(processed_lines)
+        
         # Add a newline if the cell doesn't end with one
-        if not source.endswith('\n'):
-            source += '\n'
+        if not processed_source.endswith('\n'):
+            processed_source += '\n'
             
         # Track line number mapping
-        cell_lines = source.count('\n')
+        cell_lines = processed_source.count('\n')
         for i in range(cell_lines):
             line_mapping[synthetic_line_count + i] = cell_num
             
-        all_code.append(source)
+        all_code.append(processed_source)
         synthetic_line_count += cell_lines
     
     combined_code = '\n'.join(all_code)
