@@ -1,6 +1,6 @@
 import ast
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 
 from core.base_visitor import BaseVisitor
@@ -485,3 +485,113 @@ class PromptExtractor(BaseVisitor):
         # look at the current function name, class name, and other context clues
         # to determine if we're in an LLM-related context
         return False
+        
+    def extract_messages_arrays(self) -> List[Dict[str, Any]]:
+        """
+        Extract message arrays from LLM API calls.
+        
+        Returns:
+            List of dictionaries containing message arrays with role/content information
+        """
+        message_arrays = []
+        
+        # Function to extract message array from an API call
+        def process_api_call(node, api_call_name=None):
+            if not isinstance(node, ast.Call):
+                return None
+                
+            # Look for 'messages' parameter
+            for kw in node.keywords:
+                if kw.arg == "messages" and isinstance(kw.value, ast.List):
+                    messages = []
+                    
+                    # Process each message in the array
+                    for msg_node in kw.value.elts:
+                        if not isinstance(msg_node, ast.Dict):
+                            continue
+                            
+                        # Extract role and content from the message dictionary
+                        msg_data = {}
+                        
+                        for i, key_node in enumerate(msg_node.keys):
+                            key_str = None
+                            
+                            # Extract key string
+                            if isinstance(key_node, ast.Str):
+                                key_str = key_node.s
+                            elif hasattr(ast, 'Constant') and isinstance(key_node, ast.Constant):
+                                key_str = key_node.value if isinstance(key_node.value, str) else None
+                                
+                            if key_str and i < len(msg_node.values):
+                                value_node = msg_node.values[i]
+                                
+                                # Extract value based on node type
+                                if key_str == "role":
+                                    # For role, extract string value
+                                    if isinstance(value_node, ast.Str):
+                                        msg_data["role"] = value_node.s
+                                    elif hasattr(ast, 'Constant') and isinstance(value_node, ast.Constant):
+                                        msg_data["role"] = value_node.value if isinstance(value_node.value, str) else None
+                                
+                                elif key_str == "content":
+                                    # For content, handle different node types
+                                    content_value = extract_string_value(value_node)
+                                    if content_value is not None:
+                                        msg_data["content"] = content_value
+                                    # If it's a variable name, store it with special handling
+                                    elif isinstance(value_node, ast.Name):
+                                        var_name = value_node.id
+                                        if var_name in self.variables:
+                                            var_info = self.variables.get(var_name, {})
+                                            msg_data["content"] = var_info.get("value", f"VARIABLE:{var_name}")
+                                        else:
+                                            msg_data["content"] = f"VARIABLE:{var_name}"
+                                    # If all else fails, store the node itself for inspection
+                                    else:
+                                        msg_data["content"] = extract_string_value(value_node) or str(value_node)
+                                            
+                        if msg_data:
+                            messages.append(msg_data)
+                    
+                    # If we found messages, create a message array entry
+                    if messages:
+                        line_number = getattr(node, "lineno", 0)
+                        message_arrays.append({
+                            "messages": messages,
+                            "line": line_number,
+                            "api_call": api_call_name or self._get_function_name(node)
+                        })
+        
+        # Visitor to find and process API calls
+        class MessageArrayVisitor(ast.NodeVisitor):
+            def visit_Call(self, node):
+                function_name = get_function_name(node)
+                
+                # Check if this is a known LLM API call
+                if is_call_matching(node, LLM_API_PATTERNS):
+                    process_api_call(node, function_name)
+                
+                self.generic_visit(node)
+        
+        # Create a visitor and apply it to the same root node we're analyzing
+        if hasattr(self, 'context') and 'tree' in self.context:
+            MessageArrayVisitor().visit(self.context['tree'])
+        
+        return message_arrays
+        
+    def _get_function_name(self, node):
+        """Get the function name from a call node."""
+        if isinstance(node.func, ast.Attribute):
+            attr_chain = []
+            current = node.func
+            
+            while isinstance(current, ast.Attribute):
+                attr_chain.append(current.attr)
+                current = current.value
+                
+            if isinstance(current, ast.Name):
+                attr_chain.append(current.id)
+                attr_chain.reverse()
+                return ".".join(attr_chain)
+        
+        return "unknown"

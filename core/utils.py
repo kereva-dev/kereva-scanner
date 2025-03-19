@@ -26,7 +26,7 @@ def get_scanner_categories():
                 _class = getattr(module, n)
                 scan_name = add_underscores(_class.__name__)
                 scanners[scan_name] = {"class": _class,
-                                         "description":_class.__doc__.split("\n")[0]
+                                         "description":_class.__doc__.strip().split("\n")[0]
                                          }
     
                 params = {}
