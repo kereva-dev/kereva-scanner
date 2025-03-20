@@ -10,7 +10,8 @@ LLM_API_PATTERNS = [
     {
         'type': 'function',
         'names': [
-            'generate', 'generate_text', 'generate_content', 'complete', 'completion'
+            'generate', 'generate_text', 'generate_content', 'complete', 'completion',
+            'pipeline', 'text_generator', 'generator'  # HuggingFace-specific function names
         ]
     },
     {
@@ -26,6 +27,19 @@ LLM_API_PATTERNS = [
             {'object': 'anthropic', 'attrs': ['messages', 'create']},
             {'object': 'anthropic', 'attrs': ['completions', 'create']},
             {'object': 'client', 'attrs': ['messages', 'create']},
+            
+            # HuggingFace
+            {'object': 'pipeline', 'attrs': ['__call__']},
+            {'object': 'model', 'attrs': ['generate']},
+            {'object': 'AutoModelForCausalLM', 'attrs': ['from_pretrained']},
+            {'object': 'AutoModelForCausalLM', 'attrs': ['generate']},
+            {'object': 'AutoModelForSeq2SeqLM', 'attrs': ['generate']},
+            {'object': 'TextGenerationPipeline', 'attrs': ['__call__']},
+            {'object': 'generator', 'attrs': ['generate']},
+            {'object': 'HfInferenceEndpoint', 'attrs': ['text_generation']},
+            {'object': 'InferenceClient', 'attrs': ['text_generation']},
+            {'object': 'endpoint', 'attrs': ['text_generation']},
+            {'object': 'client', 'attrs': ['text_generation']},
             
             # LangChain
             {'object': 'llm', 'attrs': ['predict']},

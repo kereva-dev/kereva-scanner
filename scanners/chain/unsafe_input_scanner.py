@@ -51,11 +51,14 @@ class UnsafeInputScanner(BaseScanner):
         if not self.issues or context.get("thorough", True):
             analyzer = LLMPromptChainAnalyzer(self.untrusted_vars)
             
-            # First pass to identify LLM wrapper functions
+            # First pass to identify LLM wrapper functions and build parent map
             analyzer.visit(ast_node)
             
             # Second pass to analyze data flow with knowledge of wrapper functions
             analyzer.visit(ast_node)
+            
+            # Special handling for functions with input validation patterns
+            self._process_validated_functions(ast_node, analyzer)
             
             # Get vulnerabilities from the analyzer
             vulnerabilities = analyzer.analyze_vulnerabilities()
@@ -92,6 +95,84 @@ class UnsafeInputScanner(BaseScanner):
             print(f"Final count of issues: {len(self.issues)}")
                 
         return self.issues
+        
+    def _process_validated_functions(self, ast_node, analyzer):
+        """
+        Special handling for functions that validate input before passing to LLM.
+        Identifies common validation patterns like allowlists and regex checks.
+        """
+        for node in ast.walk(ast_node):
+            if isinstance(node, ast.FunctionDef):
+                # Check if any function parameter matches untrusted pattern
+                has_untrusted_param = False
+                param_names = []
+                for arg in node.args.args:
+                    param_names.append(arg.arg)
+                    if arg.arg in self.untrusted_vars:
+                        has_untrusted_param = True
+                        
+                if not has_untrusted_param and not any(p in self.untrusted_vars for p in param_names):
+                    continue
+                
+                # Check for validation patterns in the function
+                validation_found = False
+                
+                # Look for if statements with validation
+                for child in ast.walk(node):
+                    if isinstance(child, ast.If):
+                        # Look for common validation patterns
+                        if isinstance(child.test, ast.Compare):
+                            for op in child.test.ops:
+                                # Check for membership checks (in/not in)
+                                if isinstance(op, (ast.In, ast.NotIn)):
+                                    validation_found = True
+                                    # Mark this function as safe (all variables in it are sanitized)
+                                    analyzer.sanitized_vars.add(node.name)
+                                    for param in param_names:
+                                        analyzer.sanitized_vars.add(param)
+                                        
+                                    # Also add to flow graph if not present
+                                    sanitization_id = f"sanitize_func_{node.lineno}"
+                                    analyzer.flow_graph.add_node(sanitization_id, 
+                                                              type='sanitization',
+                                                              check_type='function_validation',
+                                                              line=node.lineno)
+                                    
+                                    # Connect to all variables in the function
+                                    for var in ast.walk(node):
+                                        if isinstance(var, ast.Name) and isinstance(var.ctx, ast.Store):
+                                            var_name = var.id
+                                            analyzer.sanitized_vars.add(var_name)
+                                            if var_name in analyzer.flow_graph:
+                                                analyzer.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+                                    break
+                        
+                        # Check for regex validation
+                        elif isinstance(child.test, ast.Call):
+                            func = child.test.func
+                            if isinstance(func, ast.Attribute) and func.attr == 'match':
+                                if isinstance(func.value, ast.Name) and func.value.id == 're':
+                                    validation_found = True
+                                    # Mark this function as safe
+                                    analyzer.sanitized_vars.add(node.name)
+                                    for param in param_names:
+                                        analyzer.sanitized_vars.add(param)
+                                    
+                                    # Add to flow graph
+                                    sanitization_id = f"sanitize_func_regex_{node.lineno}"
+                                    analyzer.flow_graph.add_node(sanitization_id, 
+                                                              type='sanitization',
+                                                              check_type='function_regex',
+                                                              line=node.lineno)
+                                    
+                                    # Connect to all variables
+                                    for var in ast.walk(node):
+                                        if isinstance(var, ast.Name) and isinstance(var.ctx, ast.Store):
+                                            var_name = var.id
+                                            analyzer.sanitized_vars.add(var_name)
+                                            if var_name in analyzer.flow_graph:
+                                                analyzer.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+                                    break
     
     def _find_line_number(self, vulnerability: Dict[str, Any]) -> int:
         """Extract a line number from a vulnerability."""
@@ -134,6 +215,8 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
         self.llm_nodes = set()
         # Use the shared LLM API patterns
         self.llm_api_patterns = LLM_API_PATTERNS
+        # Parent node tracking
+        self.parent_map = {}
 
         # Add untrusted sources to the graph
         for var in untrusted_vars:
@@ -141,6 +224,30 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
             
         # Add sys.argv as a special untrusted source
         self.flow_graph.add_node('sys.argv', type='source', tainted=True)
+        
+    def generic_visit(self, node):
+        """Override to add parent tracking."""
+        for field, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, ast.AST):
+                        item.parent = node
+                        self.parent_map[item] = node
+                        self.visit(item)
+            elif isinstance(value, ast.AST):
+                value.parent = node
+                self.parent_map[value] = node
+                self.visit(value)
+                
+    def visit(self, node):
+        """Add parent reference to node and call appropriate visit method."""
+        # Ensure node parent tracking is available even for nodes from first visit
+        if not hasattr(node, 'parent'):
+            node.parent = getattr(node, 'parent', None)
+        
+        method = 'visit_' + node.__class__.__name__
+        visitor = getattr(self, method, self.generic_visit)
+        return visitor(node)
 
     def visit_FunctionDef(self, node):
         """Identify functions that wrap LLM calls"""
@@ -250,9 +357,10 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
         """Handle if statements with sanitization checks."""
         self.generic_visit(node)
         
-        # Check if the test condition is a membership check (in operator)
+        # Handle membership checks (in operator)
         if isinstance(node.test, ast.Compare):
             for i, op in enumerate(node.test.ops):
+                # Case 1: Detect membership checks (in operator)
                 if isinstance(op, ast.In):
                     left = node.test.left if i == 0 else node.test.comparators[i-1]
                     right = node.test.comparators[i]
@@ -271,17 +379,8 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
                             if source in self.flow_graph:
                                 self.flow_graph.add_edge(source, sanitization_id, type='sanitized')
                         
-                        # Find all assignments in the if body
-                        for child in node.body:
-                            if isinstance(child, ast.Assign):
-                                for target in child.targets:
-                                    if isinstance(target, ast.Name):
-                                        # Mark this variable as sanitized
-                                        self.sanitized_vars.add(target.id)
-                                        
-                                        # Connect sanitization to the variable
-                                        if target.id in self.flow_graph:
-                                            self.flow_graph.add_edge(sanitization_id, target.id, type='sanitized_flow')
+                        # Mark variables as sanitized in both if body and else body
+                        self._mark_sanitized_variables(node, sanitization_id)
                         
                         self.sanitization_points.append({
                             'node': node,
@@ -290,6 +389,187 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
                             'graph_id': sanitization_id,
                             'description': 'If statement with membership check breaks taint flow'
                         })
+                        
+                # Case 2: Detect not in operator (opposite membership check)
+                elif isinstance(op, ast.NotIn):
+                    left = node.test.left if i == 0 else node.test.comparators[i-1]
+                    right = node.test.comparators[i]
+                    
+                    # If left is tainted and right is untainted
+                    if self._is_expression_tainted(left) and not self._is_expression_tainted(right):
+                        sanitization_id = f"sanitize_if_notin_{node.lineno}"
+                        self.flow_graph.add_node(sanitization_id,
+                                             type='sanitization',
+                                             check_type='if_not_in',
+                                             line=node.lineno)
+                        
+                        # Connect tainted sources to sanitization point
+                        for source in self._get_taint_source(left):
+                            if source in self.flow_graph:
+                                self.flow_graph.add_edge(source, sanitization_id, type='sanitized')
+                                
+                        # Mark variables as sanitized - only in else body for not in
+                        self._mark_sanitized_variables(node, sanitization_id, in_body=False, in_else=True)
+                        
+                        self.sanitization_points.append({
+                            'node': node,
+                            'check_type': 'if_not_in',
+                            'line': node.lineno,
+                            'graph_id': sanitization_id,
+                            'description': 'If statement with not-in check breaks taint flow'
+                        })
+        
+        # Case 3: Detect re.match or similar regex validation
+        # Check for regex pattern matching like re.match(pattern, user_input)
+        if isinstance(node.test, ast.Call):
+            func = node.test.func
+            if isinstance(func, ast.Attribute) and func.attr == 'match':
+                if isinstance(func.value, ast.Name) and func.value.id == 're':
+                    # This is a re.match call - check if args are tainted
+                    if len(node.test.args) >= 2 and self._is_expression_tainted(node.test.args[1]):
+                        sanitization_id = f"sanitize_if_regex_{node.lineno}"
+                        self.flow_graph.add_node(sanitization_id,
+                                             type='sanitization',
+                                             check_type='if_regex',
+                                             line=node.lineno)
+                        
+                        # Connect the tainted value to the sanitization point
+                        tainted_arg = node.test.args[1]
+                        for source in self._get_taint_source(tainted_arg):
+                            if source in self.flow_graph:
+                                self.flow_graph.add_edge(source, sanitization_id, type='sanitized')
+                        
+                        # Mark variables as sanitized in if body (validated regex matches)
+                        self._mark_sanitized_variables(node, sanitization_id)
+                        
+                        self.sanitization_points.append({
+                            'node': node,
+                            'check_type': 'if_regex',
+                            'line': node.lineno,
+                            'graph_id': sanitization_id,
+                            'description': 'If statement with regex validation breaks taint flow'
+                        })
+                        
+        # Case 4: Detect length checks (if len(x) < N)
+        if isinstance(node.test, ast.Compare):
+            for i, op in enumerate(node.test.ops):
+                # Look for comparison operators
+                if isinstance(op, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
+                    # Check if left side is a len() call
+                    left = node.test.left if i == 0 else node.test.comparators[i-1]
+                    
+                    if isinstance(left, ast.Call) and isinstance(left.func, ast.Name) and left.func.id == 'len':
+                        # This is a len() call
+                        if len(left.args) == 1 and self._is_expression_tainted(left.args[0]):
+                            sanitization_id = f"sanitize_if_length_{node.lineno}"
+                            self.flow_graph.add_node(sanitization_id,
+                                                 type='sanitization',
+                                                 check_type='if_length',
+                                                 line=node.lineno)
+                            
+                            # Connect the tainted value to the sanitization point
+                            tainted_arg = left.args[0]
+                            for source in self._get_taint_source(tainted_arg):
+                                if source in self.flow_graph:
+                                    self.flow_graph.add_edge(source, sanitization_id, type='sanitized')
+                            
+                            # Mark variables as sanitized
+                            self._mark_sanitized_variables(node, sanitization_id)
+                            
+                            self.sanitization_points.append({
+                                'node': node,
+                                'check_type': 'if_length',
+                                'line': node.lineno,
+                                'graph_id': sanitization_id,
+                                'description': 'If statement with length check breaks taint flow'
+                            })
+                            
+    def _mark_sanitized_variables(self, node, sanitization_id, in_body=True, in_else=False):
+        """Mark variables in conditional blocks as sanitized and connect to the flow graph."""
+        marked_vars = set()
+        
+        # Process the 'if' body if requested
+        if in_body:
+            # First, mark function-level variables if this is in a function
+            containing_func = self._find_containing_function(node)
+            if containing_func:
+                # Mark the function return and all LLM API calls in the function as sanitized
+                # This handles return statements inside the if block implicitly
+                self.sanitized_vars.add(containing_func.name)
+                marked_vars.add(containing_func.name)
+                
+                # Connect sanitization to the function node in the graph
+                if containing_func.name in self.flow_graph:
+                    self.flow_graph.add_edge(sanitization_id, containing_func.name, type='sanitized_flow')
+                else:
+                    self.flow_graph.add_node(containing_func.name, type='function', sanitized=True)
+                    self.flow_graph.add_edge(sanitization_id, containing_func.name, type='sanitized_flow')
+                    
+                # Find all assignments in the function
+                for child in ast.walk(containing_func):
+                    if isinstance(child, ast.Assign):
+                        for target in child.targets:
+                            if isinstance(target, ast.Name):
+                                var_name = target.id
+                                self.sanitized_vars.add(var_name)
+                                marked_vars.add(var_name)
+                                
+                                # Add to graph if not already there
+                                if var_name in self.flow_graph:
+                                    self.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+                                else:
+                                    self.flow_graph.add_node(var_name, type='variable', sanitized=True)
+                                    self.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+            
+            # Look for variables assigned inside the if block
+            for child in ast.walk(node):
+                if isinstance(child, ast.Assign):
+                    for target in child.targets:
+                        if isinstance(target, ast.Name):
+                            var_name = target.id
+                            self.sanitized_vars.add(var_name)
+                            marked_vars.add(var_name)
+                            
+                            # Connect sanitization to the variable
+                            if var_name in self.flow_graph:
+                                self.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+                            else:
+                                # Add the node if it doesn't exist
+                                self.flow_graph.add_node(var_name, type='variable', sanitized=True)
+                                self.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+        
+        # Process the 'else' body if requested and exists
+        if in_else and hasattr(node, 'orelse') and node.orelse:
+            for child in ast.walk(ast.Module(body=node.orelse, type_ignores=[])):
+                if isinstance(child, ast.Assign):
+                    for target in child.targets:
+                        if isinstance(target, ast.Name):
+                            var_name = target.id
+                            self.sanitized_vars.add(var_name)
+                            marked_vars.add(var_name)
+                            
+                            # Connect sanitization to the variable
+                            if var_name in self.flow_graph:
+                                self.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+                            else:
+                                # Add the node if it doesn't exist
+                                self.flow_graph.add_node(var_name, type='variable', sanitized=True)
+                                self.flow_graph.add_edge(sanitization_id, var_name, type='sanitized_flow')
+        
+        # For debugging
+        debug = os.environ.get('DEBUG') == "1"
+        if debug and marked_vars:
+            print(f"Marked variables as sanitized: {marked_vars}")
+            
+    def _find_containing_function(self, node):
+        """Find the function containing the given node."""
+        # Start from parent and go up looking for a FunctionDef node
+        parent = getattr(node, 'parent', None)
+        while parent is not None:
+            if isinstance(parent, ast.FunctionDef):
+                return parent
+            parent = getattr(parent, 'parent', None)
+        return None
 
     def visit_Compare(self, node):
         """Handle comparison operations, including set membership checks."""
@@ -463,13 +743,56 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
         """Check if a path contains at least one LLM-related node."""
         return any(node in self.llm_nodes for node in path)
 
+    def _is_path_sanitized(self, path):
+        """Check if a path contains a sanitization node or involves sanitized variables."""
+        # Check if the path contains a sanitization point directly
+        direct_sanitization = any(
+            isinstance(node, str) and (
+                node.startswith('sanitize_') or 
+                node in self.sanitized_vars
+            )
+            for node in path
+        )
+        
+        if direct_sanitization:
+            return True
+        
+        # Check for sanitization relationships in the path
+        # This handles cases where sanitization wasn't directly in the path
+        # but affects variables in the path
+        for i, node in enumerate(path[:-1]):
+            if node in self.tainted_vars:
+                # For each tainted node, check if it's connected to a sanitization node
+                # that might not be directly in the path
+                for sanitize_node in self.flow_graph.nodes():
+                    if isinstance(sanitize_node, str) and sanitize_node.startswith('sanitize_'):
+                        # Check if this sanitization node affects any variable in our path
+                        for successor in self.flow_graph.successors(sanitize_node):
+                            if successor in path[i:]:
+                                return True
+        
+        # No sanitization found
+        return False
+
     def analyze_vulnerabilities(self):
         """Analyze the code for straight paths from untrusted inputs through LLMs to outputs."""
         # Track unique vulnerabilities to avoid duplicates
         unique_vulnerabilities = set()
         
+        # Extract sanitization nodes
+        sanitization_nodes = [node for node in self.flow_graph.nodes() 
+                             if isinstance(node, str) and node.startswith('sanitize_')]
+        
         # Identify LLM API calls in the code (potential sinks)
-        llm_call_nodes = [node for node in self.flow_graph.nodes() if isinstance(node, str) and node.startswith('llm_call_')]
+        llm_call_nodes = [node for node in self.flow_graph.nodes() 
+                         if isinstance(node, str) and node.startswith('llm_call_')]
+        
+        # Debug print sanitation points and nodes
+        debug = os.environ.get('DEBUG') == "1"
+        if debug:
+            print(f"Found {len(sanitization_nodes)} sanitization nodes: {sanitization_nodes}")
+            print(f"Found {len(self.sanitization_points)} sanitization points")
+            print(f"Sanitized variables: {self.sanitized_vars}")
         
         # Find all inputs to LLM API calls
         for llm_node in llm_call_nodes:
@@ -479,24 +802,43 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
             # Check each input for taint
             for input_var in llm_inputs:
                 if isinstance(input_var, str) and input_var in self.tainted_vars:
+                    # Skip if this input is in our sanitized variables list
+                    if input_var in self.sanitized_vars:
+                        continue
+                        
                     # This is a tainted input to an LLM - trace back to the source
                     for source in self.untrusted_vars:
                         if source in self.flow_graph:
                             try:
                                 # Find all paths from untrusted source to this input
                                 source_paths = list(nx.all_simple_paths(self.flow_graph, source, input_var))
-                                if source_paths:
-                                    # Create a vulnerability for each unique source->LLM path
-                                    vuln_id = f"{source}_{llm_node}"
-                                    if vuln_id not in unique_vulnerabilities:
-                                        unique_vulnerabilities.add(vuln_id)
-                                        self.vulnerabilities.append({
-                                            'type': 'untrusted_to_llm',
-                                            'source': source,
-                                            'sink': llm_node,
-                                            'path': source_paths[0],  # Include one example path
-                                            'description': f"Untrusted input '{source}' flows to LLM API call without proper sanitization"
-                                        })
+                                
+                                # Skip if no paths found
+                                if not source_paths:
+                                    continue
+                                    
+                                # Check if any path is sanitized
+                                all_sanitized = True
+                                for path in source_paths:
+                                    if not self._is_path_sanitized(path):
+                                        all_sanitized = False
+                                        break
+                                
+                                if all_sanitized:
+                                    # All paths are sanitized, no vulnerability
+                                    continue
+                                
+                                # Create a vulnerability for this unsanitized source->LLM path
+                                vuln_id = f"{source}_{llm_node}"
+                                if vuln_id not in unique_vulnerabilities:
+                                    unique_vulnerabilities.add(vuln_id)
+                                    self.vulnerabilities.append({
+                                        'type': 'untrusted_to_llm',
+                                        'source': source,
+                                        'sink': llm_node,
+                                        'path': source_paths[0],  # Include one example path
+                                        'description': f"Untrusted input '{source}' flows to LLM API call without proper sanitization"
+                                    })
                             except nx.NetworkXNoPath:
                                 # No path exists
                                 pass
@@ -510,24 +852,44 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
                     isinstance(node.value.value, ast.Name) and
                     node.value.value.id == 'sys' and 
                     node.value.attr == 'argv'):
+                    
+                    # Skip if this is in sanitized variables
+                    if var in self.sanitized_vars:
+                        continue
+                        
                     # This variable comes from sys.argv - check if it flows to an LLM
                     for llm_node in llm_call_nodes:
                         # Find paths from this variable to any LLM call
                         if var in self.flow_graph and llm_node in self.flow_graph:
                             try:
                                 paths = list(nx.all_simple_paths(self.flow_graph, var, llm_node))
-                                if paths:
-                                    # Create a vulnerability
-                                    vuln_id = f"sys.argv_{var}_{llm_node}"
-                                    if vuln_id not in unique_vulnerabilities:
-                                        unique_vulnerabilities.add(vuln_id)
-                                        self.vulnerabilities.append({
-                                            'type': 'system_argv_to_llm',
-                                            'source': f"sys.argv via {var}",
-                                            'sink': llm_node,
-                                            'path': paths[0],
-                                            'description': f"Command line argument from sys.argv flows to LLM without proper sanitization"
-                                        })
+                                
+                                # Skip if no paths found
+                                if not paths:
+                                    continue
+                                
+                                # Check if all paths are sanitized
+                                all_sanitized = True
+                                for path in paths:
+                                    if not self._is_path_sanitized(path):
+                                        all_sanitized = False
+                                        break
+                                
+                                if all_sanitized:
+                                    # All paths are sanitized, no vulnerability
+                                    continue
+                                
+                                # Create a vulnerability
+                                vuln_id = f"sys.argv_{var}_{llm_node}"
+                                if vuln_id not in unique_vulnerabilities:
+                                    unique_vulnerabilities.add(vuln_id)
+                                    self.vulnerabilities.append({
+                                        'type': 'system_argv_to_llm',
+                                        'source': f"sys.argv via {var}",
+                                        'sink': llm_node,
+                                        'path': paths[0],
+                                        'description': f"Command line argument from sys.argv flows to LLM without proper sanitization"
+                                    })
                             except nx.NetworkXNoPath:
                                 # No path exists
                                 pass
@@ -554,28 +916,38 @@ class LLMPromptChainAnalyzer(ast.NodeVisitor):
                         # Filter to only include paths that contain an LLM node
                         llm_paths = [path for path in all_paths if self._path_contains_llm(path)]
                         
-                        # Check if any path is not sanitized
-                        for path in llm_paths:
-                            # Check if the path contains a sanitization point
-                            sanitized = any(
-                                isinstance(node, str) and node.startswith('sanitize_') 
-                                for node in path
-                            )
+                        # Skip if no valid paths
+                        if not llm_paths:
+                            continue
                             
-                            if not sanitized:
-                                # Create a unique identifier for this vulnerability
-                                vuln_id = f"{source}_{output}"
-                                
-                                if vuln_id not in unique_vulnerabilities:
-                                    unique_vulnerabilities.add(vuln_id)
-                                    self.vulnerabilities.append({
-                                        'type': 'llm_straight_path',
-                                        'source': source,
-                                        'sink': output,
-                                        'path': path,  # Include one example path
-                                        'description': f"Straight path from untrusted input '{source}' through LLM to output '{output}'"
-                                    })
-                                break  # Only need one example of a vulnerable path
+                        # Check if all paths are sanitized
+                        all_sanitized = True
+                        for path in llm_paths:
+                            if not self._is_path_sanitized(path):
+                                all_sanitized = False
+                                break
+                        
+                        if all_sanitized:
+                            # All paths are sanitized, no vulnerability
+                            continue
+                            
+                        # Found at least one unsanitized path
+                        vuln_id = f"{source}_{output}"
+                        
+                        if vuln_id not in unique_vulnerabilities:
+                            unique_vulnerabilities.add(vuln_id)
+                            # Find the first unsanitized path to report
+                            unsanitized_path = next(
+                                (path for path in llm_paths if not self._is_path_sanitized(path)),
+                                llm_paths[0]
+                            )
+                            self.vulnerabilities.append({
+                                'type': 'llm_straight_path',
+                                'source': source,
+                                'sink': output,
+                                'path': unsanitized_path,
+                                'description': f"Straight path from untrusted input '{source}' through LLM to output '{output}'"
+                            })
                                 
                     except nx.NetworkXNoPath:
                         # No path exists
