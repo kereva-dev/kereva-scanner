@@ -75,6 +75,10 @@ def parse_arguments():
         "--log-dir", type=str, default="logs", 
         help="Directory where comprehensive logs will be saved (default: logs)"
     )
+    parser.add_argument(
+        "--github_url", type=str,
+        help="Base GitHub URL to prepend to relative file paths in reports"
+    )
     return parser.parse_args()
 
 
@@ -183,7 +187,7 @@ def main():
     # Additionally output to JSON if requested
     if args.json:
         from reporters.json_reporter import JSONReporter
-        json_reporter = JSONReporter(output_dir=args.json_dir)
+        json_reporter = JSONReporter(output_dir=args.json_dir, github_url=args.github_url)
         json_path = json_reporter.report(issues)
         print(f"JSON report saved to: {json_path}")
         

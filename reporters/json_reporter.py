@@ -20,14 +20,16 @@ class JSONReporter:
     and includes file hashes to match results back to the original source files.
     """
     
-    def __init__(self, output_dir: Optional[str] = None):
+    def __init__(self, output_dir: Optional[str] = None, github_url: Optional[str] = None):
         """
         Initialize the JSON reporter.
         
         Args:
-            output_dir: Directory where JSON reports will be saved (defaults to 'logs')
+            output_dir: Directory where JSON reports will be saved (defaults to 'scan_results')
+            github_url: Base GitHub URL to prepend to relative file paths (optional)
         """
-        self.output_dir = output_dir or "logs"
+        self.output_dir = output_dir or "scan_results"
+        self.github_url = github_url
         # Create output directory if it doesn't exist
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -86,8 +88,11 @@ class JSONReporter:
         
         for issue in issues:
             file_path = issue.location.get("file", "<unknown>")
-            if file_path not in files_dict:
-                files_dict[file_path] = {
+            github_file_path = self._get_github_url(file_path) if self.github_url else file_path
+            
+            if github_file_path not in files_dict:
+                files_dict[github_file_path] = {
+                    "local_path": file_path,  # Keep the local path for reference
                     "issues": [],
                     "issue_count": 0,
                     "severity_counts": {
@@ -99,25 +104,68 @@ class JSONReporter:
                     }
                 }
             
+            # Create a copy of the location with the GitHub URL if available
+            location = issue.location.copy()
+            if self.github_url and "file" in location:
+                location["file"] = self._get_github_url(location["file"])
+                
             # Convert issue to a serializable dictionary
             issue_dict = {
                 "rule_id": issue.rule_id,
                 "message": issue.message,
-                "location": issue.location,
+                "location": location,
                 "severity": issue.severity,
                 "fix_suggestion": issue.fix_suggestion,
                 "context": issue.context
             }
             
-            files_dict[file_path]["issues"].append(issue_dict)
-            files_dict[file_path]["issue_count"] += 1
+            files_dict[github_file_path]["issues"].append(issue_dict)
+            files_dict[github_file_path]["issue_count"] += 1
             
             # Update severity counts
             severity = issue.severity.lower()
-            if severity in files_dict[file_path]["severity_counts"]:
-                files_dict[file_path]["severity_counts"][severity] += 1
+            if severity in files_dict[github_file_path]["severity_counts"]:
+                files_dict[github_file_path]["severity_counts"][severity] += 1
         
         return files_dict
+        
+    def _get_github_url(self, file_path: str) -> str:
+        """
+        Convert a local file path to a GitHub URL.
+        
+        Args:
+            file_path: Local file path
+            
+        Returns:
+            GitHub URL for the file
+        """
+        if not self.github_url:
+            return file_path
+            
+        # If the file_path already has a URL format, return it unchanged
+        if "://" in file_path:
+            return file_path
+            
+        from pathlib import Path
+        target_path = Path(file_path)
+        
+        # For external files or direct file scans, we just want the filename
+        # For example, if scanning "../demo_scans/file.py", we want "file.py" in the URL
+        if target_path.is_file() and ".." in file_path:
+            path_for_url = target_path.name
+        else:
+            # For relative paths within the repo, use the full relative path
+            # Get the absolute path first to handle relative paths properly
+            abs_file_path = os.path.abspath(file_path)
+            
+            # Get the path relative to the current working directory
+            path_for_url = os.path.relpath(abs_file_path, os.getcwd())
+            
+        # Ensure the GitHub URL doesn't end with a slash
+        base_url = self.github_url.rstrip('/')
+        
+        # Combine GitHub URL with the appropriate path
+        return f"{base_url}/{path_for_url}"
     
     def _compute_file_hash(self, file_path: str) -> str:
         """
