@@ -22,7 +22,9 @@ LLM_API_PATTERNS = [
             {'object': 'openai', 'attrs': ['ChatCompletion', 'create']},
             {'object': 'client', 'attrs': ['chat', 'completions', 'create']},
             {'object': 'client', 'attrs': ['completions', 'create']},
-            
+            {'object': 'openai_client', 'attrs': ['chat', 'completions', 'create']},
+            {'object': 'openai_client', 'attrs': ['completions', 'create']},
+
             # Anthropic
             {'object': 'anthropic', 'attrs': ['messages', 'create']},
             {'object': 'anthropic', 'attrs': ['completions', 'create']},
