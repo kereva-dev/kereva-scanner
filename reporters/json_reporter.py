@@ -20,16 +20,18 @@ class JSONReporter:
     and includes file hashes to match results back to the original source files.
     """
     
-    def __init__(self, output_dir: Optional[str] = None, github_url: Optional[str] = None):
+    def __init__(self, output_dir: Optional[str] = None, github_url: Optional[str] = None, scan_target: Optional[str] = None):
         """
         Initialize the JSON reporter.
         
         Args:
             output_dir: Directory where JSON reports will be saved (defaults to 'scan_results')
             github_url: Base GitHub URL to prepend to relative file paths (optional)
+            scan_target: The directory or file that was scanned (optional)
         """
         self.output_dir = output_dir or "scan_results"
         self.github_url = github_url
+        self.scan_target = scan_target
         # Create output directory if it doesn't exist
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
@@ -145,26 +147,43 @@ class JSONReporter:
         # If the file_path already has a URL format, return it unchanged
         if "://" in file_path:
             return file_path
-            
-        from pathlib import Path
-        target_path = Path(file_path)
         
-        # For external files or direct file scans, we just want the filename
-        # For example, if scanning "../demo_scans/file.py", we want "file.py" in the URL
-        if target_path.is_file() and ".." in file_path:
-            path_for_url = target_path.name
-        else:
-            # For relative paths within the repo, use the full relative path
-            # Get the absolute path first to handle relative paths properly
-            abs_file_path = os.path.abspath(file_path)
+        # If we have a scan target, use it to determine the relative path
+        if self.scan_target:
+            from pathlib import Path
             
-            # Get the path relative to the current working directory
-            path_for_url = os.path.relpath(abs_file_path, os.getcwd())
+            # Convert to absolute paths to handle relative paths correctly
+            abs_file_path = os.path.abspath(file_path)
+            abs_scan_target = os.path.abspath(self.scan_target)
+            
+            # If the scan target is a file, use just the filename
+            if os.path.isfile(abs_scan_target):
+                path_for_url = os.path.basename(abs_file_path)
+            else:
+                # If the scan target is a directory, get the path relative to it
+                try:
+                    # This handles both files inside the scan target directory and files
+                    # that might be specified through different paths but refer to the same location
+                    rel_path = os.path.relpath(abs_file_path, abs_scan_target)
+                    
+                    # If the relative path starts with .. it means the file is not 
+                    # under the scan target (should be rare but handle it)
+                    if rel_path.startswith('..'):
+                        path_for_url = os.path.basename(abs_file_path)
+                    else:
+                        # Use the relative path
+                        path_for_url = rel_path.replace('\\', '/')  # Normalize for URLs
+                except ValueError:
+                    # If on different drives (Windows), fall back to filename
+                    path_for_url = os.path.basename(abs_file_path)
+        else:
+            # Fallback if no scan target is provided
+            path_for_url = os.path.basename(file_path)
             
         # Ensure the GitHub URL doesn't end with a slash
         base_url = self.github_url.rstrip('/')
         
-        # Combine GitHub URL with the appropriate path
+        # Combine GitHub URL with the path
         return f"{base_url}/{path_for_url}"
     
     def _compute_file_hash(self, file_path: str) -> str:

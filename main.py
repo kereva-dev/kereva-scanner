@@ -187,7 +187,9 @@ def main():
     # Additionally output to JSON if requested
     if args.json:
         from reporters.json_reporter import JSONReporter
-        json_reporter = JSONReporter(output_dir=args.json_dir, github_url=args.github_url)
+        json_reporter = JSONReporter(output_dir=args.json_dir, 
+                github_url=args.github_url,
+                scan_target=args.path)
         json_path = json_reporter.report(issues)
         print(f"JSON report saved to: {json_path}")
         
