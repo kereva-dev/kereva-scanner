@@ -5,6 +5,13 @@ This module contains shared configuration and pattern definitions used by multip
 Centralizing these patterns makes it easier to maintain and update them.
 """
 
+# Vulnerability Types
+VULNERABILITY_TYPES = {
+    "UNTRUSTED_TO_LLM": "untrusted_to_llm",
+    "SYSTEM_ARGV_TO_LLM": "system_argv_to_llm",
+    "LLM_STRAIGHT_PATH": "llm_straight_path"
+}
+
 # Patterns for identifying LLM API calls across different providers
 LLM_API_PATTERNS = [
     {
@@ -24,7 +31,7 @@ LLM_API_PATTERNS = [
             {'object': 'client', 'attrs': ['completions', 'create']},
             {'object': 'openai_client', 'attrs': ['chat', 'completions', 'create']},
             {'object': 'openai_client', 'attrs': ['completions', 'create']},
-
+            
             # Anthropic
             {'object': 'anthropic', 'attrs': ['messages', 'create']},
             {'object': 'anthropic', 'attrs': ['completions', 'create']},
@@ -90,4 +97,28 @@ PROMPT_VARIABLE_PATTERNS = [
 COMMON_XML_TAGS = [
     "user_input", "input", "user", "query", "question", "context",
     "system", "human", "ai", "assistant", "example", "document"
+]
+
+# Common sanitization function names
+SANITIZATION_FUNCTION_PATTERNS = [
+    'sanitize', 'clean', 'escape', 'validate', 'filter',
+    'html.escape', 'bleach.clean', 'strip_tags'
+]
+
+# Common function names for LLM API calls
+LLM_FUNCTION_NAMES = [
+    'chat', 'generate', 'complete', 'create_completion', 
+    'generate_text', 'ask_llm', 'query_llm'
+]
+
+# Common method chain patterns for LLM API calls
+LLM_METHOD_CHAIN_PATTERNS = [
+    {'obj': 'openai', 'methods': ['create', 'generate', 'complete']},
+    {'obj': 'client', 'methods': ['create', 'chat', 'complete']},
+    {'obj': 'anthropic', 'methods': ['create', 'complete', 'messages']}
+]
+
+# LLM API keyword arguments that might contain untrusted input
+LLM_UNTRUSTED_PARAM_NAMES = [
+    'messages', 'prompt', 'content', 'input'
 ]
