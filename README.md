@@ -153,7 +153,6 @@ For more detailed documentation on:
 - Architecture and design
 - Adding custom scanners
 - Framework-specific support
-- Integration patterns
 
 See the [PROJECT_DOCS.md](PROJECT_DOCS.md) file.
 
