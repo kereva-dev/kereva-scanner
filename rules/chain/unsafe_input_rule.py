@@ -2,6 +2,7 @@ import ast
 from typing import Any, Optional, Dict, List
 from rules.base_rule import BaseRule
 from core.issue import Issue
+from core.config import UNTRUSTED_INPUT_PATTERNS, LLM_METHOD_CHAIN_PATTERNS, LLM_FUNCTION_NAMES
 
 class UnsafeInputRule(BaseRule):
     """Rule to detect untrusted input flowing through LLM chains without sanitization."""
@@ -13,10 +14,8 @@ class UnsafeInputRule(BaseRule):
             severity="high",
             tags=["security", "sanitization", "prompt-engineering"]
         )
-        # Default untrusted input parameter names (can be customized through context)
-        self.default_untrusted_params = [
-            "user_input", "query", "prompt", "user_message", "request", "input"
-        ]
+        # Use untrusted input parameter names from config (can be customized through context)
+        self.default_untrusted_params = UNTRUSTED_INPUT_PATTERNS
         
     def check(self, node_info: Any, context: Optional[dict] = None) -> Optional[Issue]:
         """Check if untrusted input flows through LLM chain without sanitization."""
@@ -48,7 +47,7 @@ class UnsafeInputRule(BaseRule):
                             severity=self.severity,
                             fix_suggestion="Implement input validation or use a allow-list approach for user inputs",
                             context={"param": param, "llm_call": ast.dump(llm_call)},
-                            tags=["security", "sanitization", "prompt-engineering"]
+                            tags=self.tags
                         )
         elif isinstance(node_info, dict) and 'content' in node_info:
             # Handle prompt data dictionary from PromptScanner
@@ -97,12 +96,8 @@ class UnsafeInputRule(BaseRule):
                     if isinstance(current, ast.Name):
                         base_obj = current.id
                         
-                        # Common LLM API patterns
-                        llm_patterns = [
-                            {'obj': 'openai', 'methods': ['create', 'generate', 'complete']},
-                            {'obj': 'client', 'methods': ['create', 'chat', 'complete']},
-                            {'obj': 'anthropic', 'methods': ['create', 'complete', 'messages']}
-                        ]
+                        # Use LLM method patterns from config
+                        llm_patterns = LLM_METHOD_CHAIN_PATTERNS
                         
                         for pattern in llm_patterns:
                             if base_obj == pattern['obj'] and any(m in attr_chain for m in pattern['methods']):
@@ -110,10 +105,7 @@ class UnsafeInputRule(BaseRule):
                 
                 # Function names (e.g., generate_text, ask_llm)
                 if isinstance(node.func, ast.Name):
-                    llm_function_names = [
-                        'chat', 'generate', 'complete', 'create_completion', 
-                        'generate_text', 'ask_llm', 'query_llm'
-                    ]
+                    llm_function_names = LLM_FUNCTION_NAMES
                     if node.func.id in llm_function_names:
                         return True
                         
