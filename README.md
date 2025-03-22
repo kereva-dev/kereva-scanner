@@ -20,7 +20,6 @@ Kereva LLM Code Scanner is a static analysis tool designed to identify potential
 - **Specialized LLM Scanners**: Detect security, quality, and efficiency problems specific to LLM applications
 - **Multi-format Support**: Analyze Python files and Jupyter notebooks (.ipynb)
 - **Flexible Reporting**: Get results in human-readable console output or structured JSON
-- **Easy Integration**: Simple API for CI/CD pipeline integration
 
 ## 🚀 Installation
 
