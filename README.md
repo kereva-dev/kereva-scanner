@@ -10,6 +10,10 @@
   > ⚠️ **Early Release**: Please expect bugs and breaking changes
 </div>
 
+<p align="center">
+  <img src="https://github.com/kereva-dev/kereva-scanner/blob/master/media/dashboard.gif?raw=true" alt="Scan Example" width="800">
+</p>
+
 ## 🔍 Overview
 
 Kereva LLM Code Scanner is a static analysis tool designed to identify potential security risks, performance issues, and vulnerabilities in Python codebases that use Large Language Models (LLMs). It analyzes your code without execution to detect problems like hallucination triggers, bias potential, prompt injection vulnerabilities, and inefficient LLM usage patterns.
