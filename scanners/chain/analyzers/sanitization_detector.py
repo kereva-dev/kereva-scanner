@@ -331,14 +331,27 @@ class SanitizationDetector(TaintAnalysisVisitor):
             
     def _is_sanitization_function(self, node):
         """Check if a node is a sanitization function call."""
-        from core.config import SANITIZATION_FUNCTION_PATTERNS
+        from core.config import SANITIZATION_FUNCTION_PATTERNS, OUTPUT_SANITIZATION_FUNCTIONS
+        
+        # Combine all sanitization function patterns
+        all_patterns = SANITIZATION_FUNCTION_PATTERNS + OUTPUT_SANITIZATION_FUNCTIONS
         
         if isinstance(node.func, ast.Name):
-            return any(pattern in node.func.id for pattern in SANITIZATION_FUNCTION_PATTERNS)
+            return any(pattern in node.func.id.lower() for pattern in all_patterns)
         
         elif isinstance(node.func, ast.Attribute):
             attr_chain = get_attribute_chain(node.func) 
             if attr_chain:
-                return any(pattern in '.'.join(attr_chain) for pattern in SANITIZATION_FUNCTION_PATTERNS)
+                full_name = '.'.join(attr_chain)
+                return any(pattern in full_name.lower() for pattern in all_patterns)
+        
+        # Also check for sanitize method name in function definition names
+        if isinstance(node.func, ast.Name):
+            return ('sanitize' in node.func.id.lower() or 
+                   'validate' in node.func.id.lower() or
+                   'clean' in node.func.id.lower() or
+                   'escape' in node.func.id.lower() or
+                   'filter' in node.func.id.lower() or
+                   'check' in node.func.id.lower())
                 
         return False

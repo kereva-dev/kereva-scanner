@@ -12,6 +12,8 @@ from scanners.base_scanner import BaseScanner
 from core.issue import Issue
 from core.config import UNTRUSTED_INPUT_PATTERNS
 from rules.chain.unsafe_input_rule import UnsafeInputRule
+from rules.chain.unsafe_complete_chain_rule import UnsafeCompleteChainRule
+from rules.output.unsafe_llm_output_usage_rule import UnsafeLLMOutputUsageRule
 from scanners.chain.chain_analyzer import ChainAnalyzer
 
 
@@ -21,7 +23,9 @@ class UnsafeInputScanner(BaseScanner):
     def __init__(self, untrusted_vars: Optional[List[str]] = None):
         # Initialize with the appropriate rules
         rules = [
-            UnsafeInputRule()
+            UnsafeInputRule(),
+            UnsafeCompleteChainRule(),
+            UnsafeLLMOutputUsageRule()
         ]
         super().__init__(rules)
         self.untrusted_vars = untrusted_vars or UNTRUSTED_INPUT_PATTERNS
@@ -56,33 +60,29 @@ class UnsafeInputScanner(BaseScanner):
             analyzer.analyze(ast_node)
             vulnerabilities = analyzer.find_vulnerabilities()
             
-            # Convert vulnerabilities to Issue objects
-            # Get rule ID from the rule instance rather than hardcoding it
-            rule_id = self.rules[0].rule_id if self.rules else "chain-unsafe-input"
-            
+            # Apply the appropriate rule for each vulnerability
             for vuln in vulnerabilities:
                 line_number = self._find_line_number(vuln)
-                issue = Issue(
-                    rule_id=rule_id,  # Use the rule ID from the rule instance
-                    message=vuln["description"],
-                    location={
-                        "file": context.get("file_name", "<unknown>"),
-                        "line": line_number,
-                        "column": 0
-                    },
-                    severity="high",
-                    fix_suggestion=(
-                        "Implement input validation or sanitization before passing "
-                        "untrusted input to LLM. Consider using an allow-list approach."
-                    ),
-                    context={
-                        "source": vuln["source"],
-                        "sink": vuln["sink"],
-                        "path": " -> ".join(vuln["path"]) if "path" in vuln else ""
-                    },
-                    tags=self.rules[0].tags if self.rules else []
-                )
-                self.register_issue(issue)
+                vuln["line"] = line_number
+                
+                # Map vulnerability type to the appropriate rule
+                if vuln.get("type") == "untrusted_to_llm":
+                    # Use UnsafeInputRule
+                    rule = self.rules[0]
+                elif vuln.get("type") == "unsafe_complete_chain":
+                    # Use UnsafeCompleteChainRule
+                    rule = self.rules[1]
+                elif vuln.get("type") == "llm_to_unsafe_output":
+                    # Use UnsafeLLMOutputUsageRule
+                    rule = self.rules[2]
+                else:
+                    # Default to UnsafeInputRule
+                    rule = self.rules[0]
+                
+                # Apply the rule to generate the issue
+                issue = rule.check(vuln, context)
+                if issue:
+                    self.register_issue(issue)
                 
         if debug:
             print(f"Final count of issues: {len(self.issues)}")

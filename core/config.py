@@ -9,7 +9,9 @@ Centralizing these patterns makes it easier to maintain and update them.
 VULNERABILITY_TYPES = {
     "UNTRUSTED_TO_LLM": "untrusted_to_llm",
     "SYSTEM_ARGV_TO_LLM": "system_argv_to_llm",
-    "LLM_STRAIGHT_PATH": "llm_straight_path"
+    "LLM_STRAIGHT_PATH": "llm_straight_path",
+    "LLM_TO_UNSAFE_OUTPUT": "llm_to_unsafe_output",
+    "UNSAFE_COMPLETE_CHAIN": "unsafe_complete_chain"  # Full chain from untrusted input through LLM to unsafe output
 }
 
 # Patterns for identifying LLM API calls across different providers
@@ -121,4 +123,30 @@ LLM_METHOD_CHAIN_PATTERNS = [
 # LLM API keyword arguments that might contain untrusted input
 LLM_UNTRUSTED_PARAM_NAMES = [
     'messages', 'prompt', 'content', 'input'
+]
+
+# Patterns for identifying potential output sinks
+OUTPUT_SINK_PATTERNS = [
+    # Common variable names used for output
+    'result', 'output', 'response', 'answer', 'completion', 
+    'generated_text', 'llm_output', 'llm_response', 'chat_response',
+    'assistant_response', 'ai_response', 'prediction',
+    
+    # Function names that might be used for output handling
+    'print', 'execute', 'eval', 'exec', 'system', 'popen', 'subprocess',
+    'write', 'save', 'log', 'display', 'render', 'return', 'json.dumps'
+]
+
+# Operations that suggest unsafe output usage
+UNSAFE_OUTPUT_OPERATIONS = [
+    'exec', 'eval', 'subprocess.run', 'subprocess.Popen', 'os.system',
+    'run_command', 'execute_command', 'execute_script', 'execute_code',
+    'compile', '__import__', 'importlib.import_module'
+]
+
+# Patterns for detecting output sanitization functions
+OUTPUT_SANITIZATION_FUNCTIONS = [
+    'validate_output', 'sanitize_output', 'clean_output', 'escape_output',
+    'encode', 'json.loads', 'parse', 'schema.validate', 'model.parse',
+    'check_output', 'filter_output', 'process_output', 'verify_output'
 ]
