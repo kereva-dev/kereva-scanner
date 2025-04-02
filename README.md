@@ -4,7 +4,9 @@
   <p><strong>Static analysis for LLM-powered Python applications</strong></p>
   <p>
     <a href="https://kereva.io">Website</a> •
-    <a href="mailto:hello@kereva.io">Contact</a> 
+    <a href="mailto:hello@kereva.io">Contact</a> •
+    <a href="https://discord.gg/E4quCsk7">Join our Discord</a>
+  </p>
   </p>
   
   > ⚠️ **Early Release**: Please expect bugs and breaking changes
