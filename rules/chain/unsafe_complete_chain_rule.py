@@ -15,7 +15,7 @@ class UnsafeCompleteChainRule(BaseRule):
     
     def __init__(self):
         super().__init__(
-            rule_id="chain-unsafe-complete-chain",
+            rule_id="chain-unsanitized-complete-chain",  # Fix: Changed to be consistent with the naming pattern
             description="Untrusted input flows through LLM to unsafe output usage without proper sanitization",
             severity="critical",
             tags=["security", "sanitization", "prompt-engineering", "output-safety"]

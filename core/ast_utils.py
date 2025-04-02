@@ -10,6 +10,8 @@ It also includes utilities for working with code content and improving issue rep
 import ast
 import os
 import re
+import tokenize
+from io import StringIO
 from typing import List, Dict, Any, Optional, Set, Tuple, Union, Callable, TypeVar, Type, Mapping
 
 
@@ -634,3 +636,71 @@ def extract_line_from_content(content: str, line_number: int,
     
     # Extract lines with context
     return "\n".join(lines[start:end])
+
+
+# ===== Comment Parsing =====
+
+def extract_line_comments(source_code: str) -> Dict[int, str]:
+    """
+    Extract comments from source code and map them to line numbers.
+    
+    Args:
+        source_code: The source code to extract comments from
+        
+    Returns:
+        Dictionary mapping line numbers to comment text
+    """
+    comments = {}
+    try:
+        tokens = tokenize.generate_tokens(StringIO(source_code).readline)
+        for token in tokens:
+            if token.type == tokenize.COMMENT:
+                # Comments start with #, so strip the # character and leading whitespace
+                comment_text = token.string.strip()
+                line_number = token.start[0]
+                comments[line_number] = comment_text
+    except tokenize.TokenError:
+        # Handle tokenization errors gracefully
+        pass
+    
+    return comments
+
+
+def parse_exclusion_comments(comments: Dict[int, str]) -> Dict[int, Dict[str, Any]]:
+    """
+    Parse scanner exclusion comments from the extracted comments.
+    
+    Recognizes the following patterns:
+    - # scanner:ignore - Completely ignore the line for all scanning
+    - # scanner:disable=rule-id - Disable specific rule for the line
+    - # scanner:disable=rule1,rule2 - Disable multiple rules for the line
+    - # scanner:disable - Disable all rules for the line
+    
+    Args:
+        comments: Dictionary mapping line numbers to comment text
+        
+    Returns:
+        Dictionary mapping line numbers to exclusion information
+    """
+    exclusions = {}
+    
+    for line_num, comment in comments.items():
+        # Check for the ignore pattern
+        if "scanner:ignore" in comment:
+            exclusions[line_num] = {"type": "ignore", "rules": None}
+            
+        # Check for the disable pattern
+        elif "scanner:disable" in comment:
+            # Extract the rules to disable
+            match = re.search(r"scanner:disable(?:=([a-zA-Z0-9_,-]+))?", comment)
+            if match:
+                rule_list = match.group(1)
+                if rule_list:
+                    # Split by comma for multiple rules
+                    rules = [rule.strip() for rule in rule_list.split(",")]
+                    exclusions[line_num] = {"type": "disable", "rules": rules}
+                else:
+                    # No rules specified, disable all
+                    exclusions[line_num] = {"type": "disable", "rules": []}
+    
+    return exclusions

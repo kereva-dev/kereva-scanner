@@ -78,6 +78,28 @@ python main.py --offline
 # Comprehensive logging for audit trails
 python main.py --comprehensive --log-dir logs
 ```
+### Excluding Lines from Scanning
+
+You can exclude specific lines from scanning with special comments:
+
+```python
+# Completely ignore this line for all scanning
+dangerous_input = input("Enter data: ")  # scanner:ignore
+
+# Disable a specific rule for this line
+risky_input = input("Enter more: ")  # scanner:disable=chain-unsanitized-input
+
+# Disable multiple rules for this line
+multi_excluded = input("Final input: ")  # scanner:disable=chain-unsanitized-input,prompt-subjective-terms
+
+# Disable all rules for this line
+exec(response.choices[0].message.content)  # scanner:disable
+```
+
+Exclusion comments are useful for:
+- Ignoring known issues that can't be fixed yet
+- Excluding false positives
+- Marking lines that have been reviewed and approved
 
 ## 🛡️ Scanner Categories
 

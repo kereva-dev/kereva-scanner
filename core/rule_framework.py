@@ -186,6 +186,10 @@ class RuleApplier:
         
         # Apply each rule
         for rule in applicable_rules:
+            # Check if rule should be skipped due to exclusions
+            if self._should_skip_rule(rule, target, context):
+                continue
+                
             # Transform the target if requested
             actual_target = target
             if transform_func:
@@ -199,6 +203,44 @@ class RuleApplier:
         # Add the new issues to the overall list
         self.issues.extend(new_issues)
         return new_issues
+        
+    def _should_skip_rule(self, rule: BaseRule, node: Any, context: Dict[str, Any]) -> bool:
+        """
+        Check if a rule should be skipped based on exclusion comments.
+        
+        Args:
+            rule: The rule to check
+            node: The AST node being checked
+            context: The context for rule application
+            
+        Returns:
+            True if the rule should be skipped, False otherwise
+        """
+        # If no exclusions in context, don't skip
+        if "exclusions" not in context:
+            return False
+            
+        exclusions = context["exclusions"]
+        
+        # If the node has lineno attribute, check if that line has exclusions
+        if hasattr(node, "lineno") and node.lineno in exclusions:
+            exclusion_info = exclusions[node.lineno]
+            
+            # If the line is completely ignored, skip the rule
+            if exclusion_info["type"] == "ignore":
+                return True
+                
+            # If rules are specified for disabling, check if this rule is in the list
+            if exclusion_info["type"] == "disable":
+                # If rules list is empty, all rules are disabled for this line
+                if not exclusion_info["rules"]:
+                    return True
+                    
+                # Skip if this rule's ID is in the disabled rules
+                return rule.rule_id in exclusion_info["rules"]
+        
+        # Otherwise, don't skip the rule
+        return False
     
     def apply_rule_batch(self,
                        targets: List[Any],
@@ -219,6 +261,7 @@ class RuleApplier:
         """
         all_new_issues = []
         for target in targets:
+            # apply_rules already handles exclusions
             new_issues = self.apply_rules(target, context, filter_func, transform_func)
             all_new_issues.extend(new_issues)
         
