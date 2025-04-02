@@ -36,7 +36,12 @@ class SubjectiveTermsRule(BaseRule):
             r"\bbetter\b",
             r"\bworse\b",
             r"\bgreater\b",
-            r"\blesser\b"
+            r"\blesser\b",
+            r"\bgood\b",
+            r"\bexcellent\b",
+            r"\bgreat\b",
+            r"\bawesome\b",
+            r"\bterrific\b"
         ]
         
         # Patterns that indicate the term is defined or constrained

@@ -9,7 +9,7 @@ class UnsafeInputRule(BaseRule):
     
     def __init__(self):
         super().__init__(
-            rule_id="chain-unsafe-input",
+            rule_id="chain-unsanitized-input",  # Fix: Changed to match the rule ID used in exclusion comments
             description="Untrusted input flows directly through LLM chain without sanitization",
             severity="high",
             tags=["security", "sanitization", "prompt-engineering"]
@@ -49,10 +49,52 @@ class UnsafeInputRule(BaseRule):
                             context={"param": param, "llm_call": ast.dump(llm_call)},
                             tags=self.tags
                         )
-        elif isinstance(node_info, dict) and 'content' in node_info:
+        elif isinstance(node_info, dict):
+            # Handle vulnerability information from the analyzer
+            if 'type' in node_info and node_info.get('type') == 'untrusted_to_llm':
+                source = node_info.get('source', '')
+                sink = node_info.get('sink', '')
+                path = node_info.get('path', [])
+                description = node_info.get('description', f"Untrusted input '{source}' flows to LLM API call without proper sanitization")
+                
+                # Get source code context and code snippet if available
+                context = context or {}
+                source_code = context.get('code', '')
+                code_snippet = None
+                lineno = node_info.get('line', 0)
+                
+                if source_code and lineno:
+                    # Get up to 3 lines of context around the line of code
+                    lines = source_code.split('\n')
+                    start_line = max(0, lineno - 2)
+                    end_line = min(len(lines), lineno + 1)
+                    code_snippet = '\n'.join(lines[start_line:end_line])
+                
+                # Create more detailed context information
+                issue_context = {
+                    'source': source,
+                    'sink': sink,
+                    'path': ' -> '.join(str(p) for p in path) if path else '',
+                    'code_snippet': code_snippet
+                }
+                
+                return Issue(
+                    rule_id=self.rule_id,
+                    message=description,
+                    location={
+                        'file': context.get('file_name', '<unknown>'),
+                        'line': lineno
+                    },
+                    severity=self.severity,
+                    fix_suggestion="Implement input validation or use XML tag encapsulation for untrusted inputs",
+                    context=issue_context,
+                    tags=self.tags
+                )
+            
             # Handle prompt data dictionary from PromptScanner
-            # (This rule doesn't need to do anything with this type of input)
-            return None
+            elif 'content' in node_info:
+                # This rule doesn't need to do anything with this type of input
+                return None
                     
         return None
     
