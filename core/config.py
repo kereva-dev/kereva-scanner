@@ -158,6 +158,35 @@ SHELL_EXECUTION_FUNCTIONS = [
     "run_shell", "execute_command", "shell_exec",       # Common wrapper names
 ]
 
+# Patterns for detecting unsafe output rendering functions
+UNSAFE_RENDERING_FUNCTIONS = [
+    # HTML/Markdown rendering libraries
+    "markdown.markdown", "markdown.Markdown", "mdx_gfm.GithubFlavoredMarkdownExtension",
+    "mistune.markdown", "mistune.Markdown", "mistune.html", "mistune.render",
+    "misaka.html", "misaka.render", 
+    # Jinja2 and templating libraries
+    "jinja2.Template", "jinja2.template", "jinja2.render", "jinja2.render_template",
+    "flask.render_template", "flask.render_template_string",
+    "django.template.render", "django.shortcuts.render",
+    # Generic templating and HTML functions
+    "render_template", "render", "template.render", "html.render", "templates.render",
+    # BeautifulSoup and HTML parsing
+    "BeautifulSoup", "bs4.BeautifulSoup", "html.parser", "HTMLParser",
+    # Web frameworks
+    "fastapi.responses.HTMLResponse", "starlette.responses.HTMLResponse",
+    "streamlit.markdown", "streamlit.write", "streamlit.html",
+    # Frontend libraries
+    "react", "vue", "dangerouslySetInnerHTML", "innerHTML"
+]
+
+# Safe output sanitization functions for rendering
+RENDERING_SANITIZATION_FUNCTIONS = [
+    "html.escape", "cgi.escape", "xml.sax.saxutils.escape", "urllib.parse.quote",
+    "html.unescape", "bleach.clean", "bleach.sanitize", "sanitize_html",
+    "clean_html", "sanitize_markdown", "purify_html", "escape_html",
+    "DOMPurify", "sanitizeHtml"
+]
+
 # Safe shell commands and their allowed arguments
 # Each command has a list of allowed argument patterns
 # Empty list means no arguments are allowed
