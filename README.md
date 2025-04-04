@@ -113,18 +113,23 @@ Exclusion comments are useful for:
 | `subjective_terms` | Identifies undefined subjective assessments |
 | `long_list` | Flags attention issues with large data lists |
 | `inefficient_caching` | Locates inefficient prompt caching patterns |
+| `system_prompt` | Checks for missing or misplaced system prompts in LLM API calls |
 
 ### Chain Scanners (`chain`)
 | Scanner | Description |
 |---------|-------------|
 | `unsafe_input` | Identifies unsanitized user input flowing to LLMs |
 | `langchain` | Detects LangChain-specific vulnerabilities |
+| `unsafe_output` | Detects vulnerabilities where LLM output is used without proper sanitization in security-sensitive operations |
 
 ### Output Scanners (`output`)
 | Scanner | Description |
 |---------|-------------|
 | `unsafe_execution` | Finds potential code execution risks from LLM outputs |
 | `structured` | Validates output model definitions and constraints |
+| `unsafe_rendering` | Detects when LLM output is used in rendering functions without proper sanitization |
+| `safe_shell_commands` | Enforces safe shell command execution with LLM outputs |
+| `huggingface_security` | Identifies security vulnerabilities in HuggingFace model usage |
 
 ## 📋 Example Output
 
