@@ -1,14 +1,16 @@
 from scanners.base_scanner import BaseScanner
 
 # Import prompt scanners
-from scanners.prompt import XmlTagsScanner, SubjectiveTermsScanner, LongListScanner, InefficientCachingScanner, SystemPromptScanner
-#from scanners.prompt.system_prompt.system_prompt_scanner import SystemPromptScanner
+from scanners.prompt import (
+    XmlTagsScanner, SubjectiveTermsScanner, LongListScanner, 
+    InefficientCachingScanner, SystemPromptScanner
+)
 
 # Import chain scanners
 from scanners.chain import UnsafeInputScanner, LangChainScanner
 
 # Import output scanners
-from scanners.output import UnsafeExecutionScanner, StructuredScanner
+from scanners.output import UnsafeExecutionScanner, StructuredScanner, HuggingFaceSecurityScanner
 
 __all__ = [
     'BaseScanner',
@@ -23,5 +25,6 @@ __all__ = [
     'LangChainScanner',
     # Output scanners
     'UnsafeExecutionScanner',
-    'StructuredScanner'
+    'StructuredScanner',
+    'HuggingFaceSecurityScanner'
 ]

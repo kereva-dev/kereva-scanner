@@ -150,3 +150,54 @@ OUTPUT_SANITIZATION_FUNCTIONS = [
     'encode', 'json.loads', 'parse', 'schema.validate', 'model.parse',
     'check_output', 'filter_output', 'process_output', 'verify_output'
 ]
+
+# Shell execution functions that should be checked
+SHELL_EXECUTION_FUNCTIONS = [
+    "os.system", "os.popen", "os.spawn", "os.exec",     # OS commands
+    "subprocess.run", "subprocess.call", "subprocess.Popen", "subprocess.check_output",  # subprocess
+    "run_shell", "execute_command", "shell_exec",       # Common wrapper names
+]
+
+# Patterns for detecting unsafe output rendering functions
+UNSAFE_RENDERING_FUNCTIONS = [
+    # HTML/Markdown rendering libraries
+    "markdown.markdown", "markdown.Markdown", "mdx_gfm.GithubFlavoredMarkdownExtension",
+    "mistune.markdown", "mistune.Markdown", "mistune.html", "mistune.render",
+    "misaka.html", "misaka.render", 
+    # Jinja2 and templating libraries
+    "jinja2.Template", "jinja2.template", "jinja2.render", "jinja2.render_template",
+    "flask.render_template", "flask.render_template_string",
+    "django.template.render", "django.shortcuts.render",
+    # Generic templating and HTML functions
+    "render_template", "render", "template.render", "html.render", "templates.render",
+    # BeautifulSoup and HTML parsing
+    "BeautifulSoup", "bs4.BeautifulSoup", "html.parser", "HTMLParser",
+    # Web frameworks
+    "fastapi.responses.HTMLResponse", "starlette.responses.HTMLResponse",
+    "streamlit.markdown", "streamlit.write", "streamlit.html",
+    # Frontend libraries
+    "react", "vue", "dangerouslySetInnerHTML", "innerHTML"
+]
+
+# Safe output sanitization functions for rendering
+RENDERING_SANITIZATION_FUNCTIONS = [
+    "html.escape", "cgi.escape", "xml.sax.saxutils.escape", "urllib.parse.quote",
+    "html.unescape", "bleach.clean", "bleach.sanitize", "sanitize_html",
+    "clean_html", "sanitize_markdown", "purify_html", "escape_html",
+    "DOMPurify", "sanitizeHtml"
+]
+
+# Safe shell commands and their allowed arguments
+# Each command has a list of allowed argument patterns
+# Empty list means no arguments are allowed
+# '*' in the list means any argument is allowed
+SAFE_SHELL_COMMANDS = {
+    'ls': ['-l', '-h', '-lh', '-hl', '--human-readable'],
+    'grep': ['-i', '-v', '-n', '--color=auto'],
+    'cat': [],  # Only allow cat with no command-line flags
+    'echo': ['*'],  # Allow echo with any arguments
+    'pwd': [],
+    'wc': ['-l', '-w', '-c', '-m'],
+    'head': ['-n', '-c'],
+    'tail': ['-n', '-f'],
+}
