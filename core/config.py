@@ -150,3 +150,25 @@ OUTPUT_SANITIZATION_FUNCTIONS = [
     'encode', 'json.loads', 'parse', 'schema.validate', 'model.parse',
     'check_output', 'filter_output', 'process_output', 'verify_output'
 ]
+
+# Shell execution functions that should be checked
+SHELL_EXECUTION_FUNCTIONS = [
+    "os.system", "os.popen", "os.spawn", "os.exec",     # OS commands
+    "subprocess.run", "subprocess.call", "subprocess.Popen", "subprocess.check_output",  # subprocess
+    "run_shell", "execute_command", "shell_exec",       # Common wrapper names
+]
+
+# Safe shell commands and their allowed arguments
+# Each command has a list of allowed argument patterns
+# Empty list means no arguments are allowed
+# '*' in the list means any argument is allowed
+SAFE_SHELL_COMMANDS = {
+    'ls': ['-l', '-h', '-lh', '-hl', '--human-readable'],
+    'grep': ['-i', '-v', '-n', '--color=auto'],
+    'cat': [],  # Only allow cat with no command-line flags
+    'echo': ['*'],  # Allow echo with any arguments
+    'pwd': [],
+    'wc': ['-l', '-w', '-c', '-m'],
+    'head': ['-n', '-c'],
+    'tail': ['-n', '-f'],
+}
