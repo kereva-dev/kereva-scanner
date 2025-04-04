@@ -32,7 +32,10 @@ result = openai.ChatCompletion.create(
     ]
 )
 
+modified_result = result + "some text"
+
 print(result)
+print(modified_result)
 
 if "I don't know" in res:
     print("Answer not known")

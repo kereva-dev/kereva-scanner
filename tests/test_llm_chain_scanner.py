@@ -39,7 +39,7 @@ def unsafe_function(user_input):
         
         # Check that the issue has the correct properties
         issue = issues[0]
-        self.assertEqual(issue.rule_id, "chain-unsafe-input")
+        self.assertEqual(issue.rule_id, "chain-unsanitized-input")
         self.assertEqual(issue.severity, "high")
         self.assertIn("user_input", issue.message)
     
