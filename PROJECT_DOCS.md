@@ -28,6 +28,13 @@ Detects code that adds long lists of data points to prompts, which may exceed LL
 #### prompt.inefficient_caching
 Detects inefficient prompt structures that could impact caching and performance.
 
+#### prompt.system_prompt
+Checks for missing or misplaced system prompts in LLM API calls.
+
+**Rules:**
+- **MissingSystemPromptRule**: Identifies LLM calls without a system prompt
+- **MisplacedSystemInstructionRule**: Detects when system instructions are inappropriately placed in user messages
+
 ### Chain Scanners (`chain`)
 
 #### chain.unsafe_input
@@ -41,6 +48,9 @@ Analyzes LangChain code to detect framework-specific issues such as RAG vulnerab
 - Detects unsafe user input flowing through LangChain components
 - Identifies LangChain-specific vulnerabilities
 
+#### chain.unsafe_output
+Detects vulnerabilities where LLM output is used without proper sanitization in security-sensitive operations.
+
 ### Output Scanners (`output`)
 
 #### output.unsafe_execution
@@ -51,12 +61,24 @@ The scanner detects LLM outputs flowing to dangerous functions:
 - Python code execution: `eval()`, `exec()`
 - OS command execution: `os.system()`, `subprocess.run()`
 
+#### output.unsafe_rendering
+Detects when LLM output is used in rendering functions without proper sanitization, which could lead to XSS or similar vulnerabilities.
+
+#### output.safe_shell_commands
+Enforces safe shell command execution with LLM outputs by detecting potentially dangerous command patterns and suggesting safer alternatives.
+
+#### output.huggingface_security
+Identifies security vulnerabilities in HuggingFace model usage, including:
+- Unsafe `trust_remote_code` settings that could execute malicious code
+- Vulnerable serialization formats that may lead to security issues
+
 #### output.structured
 Analyzes Pydantic models used for structured output parsing to prevent LLM hallucination.
 
 **Rules:**
 - **UnconstrainedFieldRule**: Detects fields without proper constraints
 - **MissingDefaultRule**: Ensures fields have default values
+- **MissingDescriptionRule**: Checks for missing field descriptions that help guide the LLM
 
 ## Architecture
 
