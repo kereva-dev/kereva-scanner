@@ -10,7 +10,7 @@ from scanners.prompt import (
 from scanners.chain import UnsafeInputScanner, LangChainScanner
 
 # Import output scanners
-from scanners.output import UnsafeExecutionScanner, StructuredScanner, HuggingFaceSecurityScanner
+from scanners.output import UnsafeExecutionScanner, StructuredScanner, HuggingFaceSecurityScanner, ParquetSecurityScanner
 
 __all__ = [
     'BaseScanner',
@@ -26,5 +26,6 @@ __all__ = [
     # Output scanners
     'UnsafeExecutionScanner',
     'StructuredScanner',
-    'HuggingFaceSecurityScanner'
+    'HuggingFaceSecurityScanner',
+    'ParquetSecurityScanner'
 ]
